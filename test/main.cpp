@@ -277,7 +277,7 @@ TEST_CASE("trains correctly", "[train]") {
 		train_settings.regularization_term = 0.0;
 		train_settings.momentum = 0.9;
 		train_settings.step_factor = 1.0;
-		train_settings.threads = 1000;
+		train_settings.threads = 8;
 		train_settings.generator = &generator;
 		train_settings.random_epsilon = 10.0;
 		train_settings.target_error = 0.001;
