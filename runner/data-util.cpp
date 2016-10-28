@@ -1,4 +1,3 @@
-
 #include <cmath>
 #include <Eigen/Dense>
 #include <string>
@@ -8,19 +7,10 @@
 #include <algorithm>
 #include <endian.h>
 
+#include "data-util.h"
+
 using Eigen::MatrixXd;
 using namespace std;
-
-double sigmoid(double t) {
-    return 1.0 / (1 + exp(-t));
-}
-
-std::string get_matrix_string(const Eigen::MatrixXd &matrix) {
-    std::ostringstream stream;
-    stream << matrix;
-
-    return stream.str();
-}
 
 Eigen::MatrixXd generate_data(int n, std::mt19937& generator) {
     Eigen::MatrixXd result(n, 3);

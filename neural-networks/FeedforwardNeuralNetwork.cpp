@@ -15,9 +15,9 @@ using Eigen::VectorXd;
 struct WorkerParams {
     const Eigen::MatrixXd* x;
     const Eigen::MatrixXd* y;
-    //int first, last;
     const TrainSettings* train_settings;
     std::vector<MatrixXd>* weights;
+    unsigned int seed;
 };
 
 FeedforwardNeuralNetwork::FeedforwardNeuralNetwork(const std::vector<int>& layers) : layers(layers) {
@@ -42,7 +42,10 @@ void FeedforwardNeuralNetwork::back_propagation(const std::vector<Eigen::VectorX
 
     for (int i = (int)fp_results.size() - 2; i >= 0; --i) {
         out[i] += delta_next * fp_results[i].transpose();
-        delta_next = (weight_list[i].transpose() * delta_next).cwiseProduct(fp_results[i])
+
+        MatrixXd current = (weight_list[i].transpose() * delta_next);
+
+        delta_next = current.cwiseProduct(fp_results[i])
                 .cwiseProduct(fp_results[i].unaryExpr([](double element) { return 1 - element; }));
         delta_next = delta_next.bottomRows(delta_next.rows() - 1);
     }
@@ -50,7 +53,7 @@ void FeedforwardNeuralNetwork::back_propagation(const std::vector<Eigen::VectorX
 
 void FeedforwardNeuralNetwork::back_propagation(const std::vector<Eigen::VectorXd>& fp_results,
                                                 const Eigen::VectorXd& y,
-                                                std::vector<Eigen::MatrixXd>& out) {
+                                                std::vector<Eigen::MatrixXd>& out) const {
     back_propagation(fp_results, y, weight_list, out);
 }
 
@@ -79,7 +82,7 @@ std::vector<Eigen::VectorXd> FeedforwardNeuralNetwork::forward_propagation(const
     return result;
 }
 
-std::vector<Eigen::VectorXd> FeedforwardNeuralNetwork::forward_propagation(const Eigen::VectorXd &input) {
+std::vector<Eigen::VectorXd> FeedforwardNeuralNetwork::forward_propagation(const Eigen::VectorXd &input) const {
     return forward_propagation(input, this->weight_list);
 }
 
@@ -95,7 +98,15 @@ void FeedforwardNeuralNetwork::set_weights(int source_layer, const Eigen::Matrix
     weight_list[source_layer] = weights;
 }
 
-Eigen::VectorXd FeedforwardNeuralNetwork::predict(const Eigen::VectorXd &input) {
+Eigen::MatrixXd FeedforwardNeuralNetwork::get_weights(int source_layer) const {
+    if (source_layer < 0 || source_layer >= static_cast<int>(weight_list.size())) {
+        throw runtime_error("Invalid layer index");
+    }
+
+    return weight_list[source_layer];
+}
+
+Eigen::VectorXd FeedforwardNeuralNetwork::predict(const Eigen::VectorXd &input) const {
     std::vector<Eigen::VectorXd> all_results = forward_propagation(input);
 
     return all_results[all_results.size() - 1];
@@ -132,6 +143,7 @@ TrainResult FeedforwardNeuralNetwork::train(const Eigen::MatrixXd &x, const Eige
     }
 
     int threads = train_settings.threads;
+    std::random_device rd;
 
     double error = compute_error(x, y, train_settings.regularization_term);
 
@@ -153,6 +165,7 @@ TrainResult FeedforwardNeuralNetwork::train(const Eigen::MatrixXd &x, const Eige
             params.x = &x;
             params.y = &y;
             params.train_settings = &train_settings;
+            params.seed = rd();
 
             if (pthread_create(&thread_ids[i], NULL, &FeedforwardNeuralNetwork::do_gradient_descent, &params)) {
                 throw runtime_error("Unable to create thread");
@@ -192,7 +205,7 @@ void* FeedforwardNeuralNetwork::do_gradient_descent(void *params_unsafe) {
 
     int steps = params->train_settings->inner_steps;
 
-    static thread_local std::mt19937 generator;
+    static thread_local std::mt19937 generator(params->seed);
     std::uniform_int_distribution<int> distribution(0, params->x->rows() - 1);
 
     for (int t = 0; t < steps; ++t) {
@@ -250,6 +263,20 @@ double FeedforwardNeuralNetwork::compute_error(const Eigen::MatrixXd& x, const E
 }
 
 double FeedforwardNeuralNetwork::compute_error(const Eigen::MatrixXd &x, const Eigen::MatrixXd &y,
-                                               double regularization_term) {
+                                               double regularization_term) const {
     return compute_error(x, y, regularization_term, this->weight_list);
+}
+
+std::vector<Eigen::MatrixXd> FeedforwardNeuralNetwork::compute_weights_error(const Eigen::MatrixXd &x,
+    const Eigen::MatrixXd &y) const {
+    auto fp_results = forward_propagation(x);
+
+    std::vector<Eigen::MatrixXd> result(weight_list.size());
+    for (size_t i = 0; i < result.size(); ++i) {
+      result[i] = Eigen::MatrixXd::Zero(weight_list[i].rows(), weight_list[i].cols());
+    }
+
+    back_propagation(fp_results, y, result);
+
+    return result;
 }

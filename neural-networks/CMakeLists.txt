@@ -5,6 +5,6 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/lib/eigen
 )
 
-set(SOURCE_FILES main.cpp FeedforwardNeuralNetwork.cpp FeedforwardNeuralNetwork.h
+set(SOURCE_FILES FeedforwardNeuralNetwork.cpp FeedforwardNeuralNetwork.h
   common/util.h common/util.cpp common/TrainSettings.h)
 add_library(neural-networks ${SOURCE_FILES})

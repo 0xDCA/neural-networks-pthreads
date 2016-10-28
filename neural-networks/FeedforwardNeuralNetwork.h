@@ -14,23 +14,26 @@ class FeedforwardNeuralNetwork {
 public:
     FeedforwardNeuralNetwork(const std::vector<int>& layers);
 
-    Eigen::VectorXd predict(const Eigen::VectorXd& input);
+    Eigen::VectorXd predict(const Eigen::VectorXd& input) const;
 
     void set_weights(int source_layer, const Eigen::MatrixXd& weights);
+    Eigen::MatrixXd get_weights(int source_layer) const;
 
     TrainResult train(const Eigen::MatrixXd &x, const Eigen::MatrixXd &y, const TrainSettings& train_settings);
 
-    double compute_error(const Eigen::MatrixXd& x, const Eigen::MatrixXd& y, double regularization_term);
+    double compute_error(const Eigen::MatrixXd& x, const Eigen::MatrixXd& y, double regularization_term) const;
+
+    std::vector<Eigen::MatrixXd> compute_weights_error(const Eigen::MatrixXd &x, const Eigen::MatrixXd &y) const;
 
 private:
     std::vector<int> layers;
     std::vector<Eigen::MatrixXd> weight_list;
 
-    std::vector<Eigen::VectorXd> forward_propagation(const Eigen::VectorXd& input);
+    std::vector<Eigen::VectorXd> forward_propagation(const Eigen::VectorXd& input) const;
 
     Eigen::MatrixXd random_matrix(int rows, int cols, double epsilon, std::mt19937& generator);
     void back_propagation(const std::vector<Eigen::VectorXd>& fp_results, const Eigen::VectorXd& y,
-                          std::vector<Eigen::MatrixXd>& out);
+                          std::vector<Eigen::MatrixXd>& out) const;
 
     static std::vector<Eigen::VectorXd> forward_propagation(const Eigen::VectorXd& input,
                                                             const std::vector<Eigen::MatrixXd>& weight_list);
