@@ -133,8 +133,6 @@ TrainResult FeedforwardNeuralNetwork::train(const Eigen::MatrixXd &x, const Eige
 
     int threads = train_settings.threads;
 
-    std::cout << "Threads: " << threads << std::endl;
-
     double error = compute_error(x, y, train_settings.regularization_term);
 
     // Gradient-descent
@@ -144,7 +142,6 @@ TrainResult FeedforwardNeuralNetwork::train(const Eigen::MatrixXd &x, const Eige
         }
 
         // Iterate over each example. Divide the examples in groups for parallel processing
-        //int block_size = static_cast<int>(ceil((1.0 * x.rows()) / threads));
         std::vector<pthread_t> thread_ids(threads);
         std::vector<std::vector<MatrixXd>> worker_weights(threads);
         std::vector<WorkerParams> param_list(threads);
@@ -162,9 +159,7 @@ TrainResult FeedforwardNeuralNetwork::train(const Eigen::MatrixXd &x, const Eige
             }
         }
 
-        for (size_t i = 0; i < weight_list.size(); ++i) {
-            weight_list[i] = MatrixXd::Zero(weight_list[i].rows(), weight_list[i].cols());
-        }
+        std::vector<MatrixXd> old_weights = weight_list;
 
         for(int i = 0; i < threads; ++i) {
             if (pthread_join(thread_ids[i], NULL)) {
@@ -172,15 +167,13 @@ TrainResult FeedforwardNeuralNetwork::train(const Eigen::MatrixXd &x, const Eige
             }
 
             for (size_t j = 0; j < weight_list.size(); ++j) {
-                weight_list[j] += worker_weights[i][j];
+                weight_list[j] += 1.0 / threads * (worker_weights[i][j] - old_weights[j]);
             }
         }
 
-        for (size_t i = 0; i < weight_list.size(); ++i) {
-            weight_list[i] *= 1.0 / threads;
-        }
-
         error = compute_error(x, y, train_settings.regularization_term);
+
+        std::cout << "Iteration " << it << ". Error: " << error << std::endl;
     }
 
     return TrainResult(train_settings.iterations, error);
@@ -197,10 +190,7 @@ void* FeedforwardNeuralNetwork::do_gradient_descent(void *params_unsafe) {
         gradients[i] = MatrixXd::Zero(weights[i].rows(), weights[i].cols());
     }
 
-    //int steps = params->train_settings->inner_steps / params->train_settings->threads;
     int steps = params->train_settings->inner_steps;
-    //double cost = compute_error(*params->x, *params->y, params->train_settings->regularization_term, weights);
-    //std::cout << "Initial cost: " << cost << "\n";
 
     static thread_local std::mt19937 generator;
     std::uniform_int_distribution<int> distribution(0, params->x->rows() - 1);
@@ -218,30 +208,11 @@ void* FeedforwardNeuralNetwork::do_gradient_descent(void *params_unsafe) {
         std::vector<Eigen::VectorXd> fp_results = forward_propagation(xi, weights);
         back_propagation(fp_results, yi, weights, deltas);
 
-        /* Check code BEGIN */
-        //MatrixXd numerical_gradient = compute_numerical_gradient(*params);
-        /* Check code END */
-
         for (size_t i = 0; i < deltas.size(); ++i) {
-            /*MatrixXd current = (1.0 / params->x->rows()) * deltas[i];
-
-            current.rightCols(current.cols() - 1) +=
-                    (params->train_settings->regularization_term / params->x->rows()) *
-                    weights[i].rightCols(weights[i].cols() - 1);*/
-
-
-
-            //gradients[i] = params->train_settings->momentum * gradients[i] + current;
             gradients[i] = params->train_settings->momentum * gradients[i] + (1.0 / params->x->rows()) * deltas[i];
             gradients[i].rightCols(gradients[i].cols() - 1) += (params->train_settings->regularization_term / params->x->rows()) * weights[i].rightCols(weights[i].cols() - 1);
             weights[i] -= params->train_settings->step_factor * gradients[i];
         }
-
-        /*double new_cost = compute_error(*params->x, *params->y, params->train_settings->regularization_term, weights);
-
-        //std::cout << "New cost:" << new_cost << ", delta: " << (new_cost - cost) << "\n";
-
-        cost = new_cost;*/
     }
 
     return 0;
@@ -264,12 +235,6 @@ double FeedforwardNeuralNetwork::compute_error(const Eigen::MatrixXd& x, const E
         auto prediction = all_results[all_results.size() - 1];
 
         error += pow((y.row(i).transpose() - prediction).norm(), 2);
-
-        /*for (int j = 0; j < prediction.size(); ++j) {
-            double y_j = y(i, j);
-            double h_j = prediction(j, 0);
-            error += y_j * log(h_j) + (1 - y_j) * log(1 - h_j);
-        }*/
     }
 
     double complexity_term = 0;
@@ -281,7 +246,6 @@ double FeedforwardNeuralNetwork::compute_error(const Eigen::MatrixXd& x, const E
         }
     }
 
-    //return -1.0 / x.rows() * error + regularization_term / (2 * x.rows()) * complexity_term;
     return 1.0 / x.rows() * error + regularization_term / (2 * x.rows()) * complexity_term;
 }
 
